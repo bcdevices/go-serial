@@ -42,8 +42,11 @@ func (p *Port) Break(d time.Duration) error {
 		return unix.IoctlSetInt(fd, unix.TIOCSBRK, 0)
 
 	case d == BreakDefault:
-		// POSIX default (~250 ms). Duration argument is ignored on these OSes.
-		return unix.Tcsendbreak(fd, 0)
+		if err := unix.IoctlSetInt(fd, unix.TIOCSBRK, 0); err != nil {
+			return err
+		}
+		time.Sleep(250 * time.Millisecond)
+		return unix.IoctlSetInt(fd, unix.TIOCCBRK, 0)
 
 	case d > 0:
 		if err := unix.IoctlSetInt(fd, unix.TIOCSBRK, 0); err != nil {
