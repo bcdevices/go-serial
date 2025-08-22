@@ -13,12 +13,13 @@ import (
 // Semantics:
 //
 //	d > 0:
+//	    Timed break via TCSBRKP with duration rounded to deciseconds
 //	    Uses tcsendbreak(fd, ms). The kernel cdc_acm driver sends ONE USB CDC
 //	    SEND_BREAK with wValue=ms and the *device* times the break.
 //	    Valid range 1..65534 ms (0xFFFE). Longer durations fall back to
 //	    host-timed assert/sleep/clear.
 //	d == BreakDefault (0):
-//	    POSIX default break (~250 ms): tcsendbreak(fd, 0).
+//	    POSIX default break (~250 ms) via TCSBRKP with 0
 //	d == BreakIndefinite (-1):
 //	    Assert indefinite break: TIOCSBRK (CDC wValue=0xFFFF).
 //	d == BreakStop (-2):
@@ -37,7 +38,7 @@ func (p *Port) Break(d time.Duration) error {
 		return unix.IoctlSetInt(fd, unix.TIOCSBRK, 0)
 
 	case d == BreakDefault:
-		return unix.Tcsendbreak(fd, 0)
+		return unix.IoctlSetInt(fd, unix.TCSBRKP, 0)
 
 	case d > 0:
 		ms := int(d / time.Millisecond)
@@ -45,9 +46,14 @@ func (p *Port) Break(d time.Duration) error {
 			ms = 1
 		}
 		if ms <= 65534 {
-			// Kernel issues a single SEND_BREAK (wValue=ms); device times it.
-			return unix.Tcsendbreak(fd, ms)
+			// Round to deciseconds (0.1 s units). 0 means default; use >=1.
+			deci := (ms + 50) / 100
+			if deci < 1 {
+				deci = 1
+			}
+			return unix.IoctlSetInt(fd, unix.TCSBRKP, deci)
 		}
+
 		// Fallback for durations >65.534s: host-timed start/sleep/stop.
 		if err := unix.IoctlSetInt(fd, unix.TIOCSBRK, 0); err != nil {
 			return err
