@@ -10,6 +10,7 @@ package serial
 
 import (
 	"os"
+	"time"
 )
 
 //go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go syscall_windows.go
@@ -50,6 +51,17 @@ type ModemStatusBits struct {
 	RI  bool // RingIndicator status
 	DCD bool // DataCarrierDetect status
 }
+
+const (
+	// BreakDefault requests the OS default break (~250 ms on POSIX).
+	BreakDefault time.Duration = 0
+
+	// BreakIndefinite asserts break until BreakStop is requested.
+	BreakIndefinite time.Duration = -1
+
+	// BreakStop clears a currently asserted break.
+	BreakStop time.Duration = -2
+)
 
 // Port is the interface for a serial Port.
 type Port struct {
